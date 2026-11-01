@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DrawSomething</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <section id="home" class="screen active">
+      <h1>DrawSomething</h1>
+      <div class="card">
+        <p id="prompt-title" class="title">Tap the button for an idea</p>
+        <p id="prompt-text"></p>
+        <p id="prompt-tags" class="tags"></p>
+      </div>
+
+      <div class="pills">
+        <button class="pill" id="pill-category">
+          <span class="pill-label">Category</span>
+          <span class="pill-value" id="val-category">Anything</span>
+        </button>
+        <button class="pill" id="pill-style">
+          <span class="pill-label">Style</span>
+          <span class="pill-value" id="val-style">Any style</span>
+        </button>
+        <button class="pill" id="pill-mood">
+          <span class="pill-label">Mood</span>
+          <span class="pill-value" id="val-mood">Any mood</span>
+        </button>
+      </div>
+
+      <button id="new-idea">🎲 New idea</button>
+      <div class="save-wrap">
+        <button id="save-idea" class="secondary">⭐ Save this idea</button>
+        <button id="drew-idea" class="secondary">Drawn</button>
+        <p id="save-message"></p>
+      </div>
+    </section>
+
+    <section id="explore" class="screen">
+      <h1>Explore</h1>
+      <div class="search-wrap">
+    <input id="search" type="search" placeholder="Search subjects, e.g. sword or fox">
+    <button id="clear-search" class="clear-btn" aria-label="Clear search">✕</button>
+    </div>
+      <p class="hint">Tap a subject to get an idea for it.</p>
+      <div id="browse-list"></div>
+    </section>
+
+    <section id="saved" class="screen"><h1>Saved</h1><div id="saved-list"><p>Nothing saved yet.</p></div></section>
+    <section id="history" class="screen"><h1>History</h1><div id="history-list"><p>Nothing drawn yet.</p></div></section>
+  </main>
+
+  <nav>
+    <button data-screen="home" class="active">🏠<span>Home</span></button>
+    <button data-screen="explore">🔍<span>Explore</span></button>
+    <button data-screen="saved">⭐<span>Saved</span></button>
+    <button data-screen="history">🕘<span>History</span></button>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
