@@ -1,4 +1,4 @@
-const CACHE = "drawsomething-v1";
+const CACHE = "drawsomething-v2";
 const FILES = [
   "./", "index.html", "style.css", "script.js",
   "manifest.json", "icon-192.png", "icon-512.png"
