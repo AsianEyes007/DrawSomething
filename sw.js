@@ -1,4 +1,4 @@
-const CACHE = "drawsomething-v2";
+const CACHE = "drawsomething";
 const FILES = [
   "./", "index.html", "style.css", "script.js",
   "manifest.json", "icon-192.png", "icon-512.png"
@@ -11,15 +11,27 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request))
+    caches.open(CACHE).then(cache =>
+      cache.match(e.request).then(hit => {
+        const update = fetch(e.request)
+          .then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          })
+          .catch(() => hit);
+        return hit || update;
+      })
+    )
   );
 });
