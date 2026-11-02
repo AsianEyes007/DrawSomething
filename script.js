@@ -1,61 +1,4 @@
-// ---------- Prompt data ----------
-const categories = {
-  objects: {
-    label: "Objects",
-    subjects: [
-      "a samurai helmet", "a pocket watch", "a glowing sword", "an antique lantern",
-      "a teapot", "a pair of old boots", "a music box", "a compass",
-      "a treasure chest", "a sewing machine"
-    ]
-  },
-  environments: {
-    label: "Environments",
-    subjects: [
-      "a lighthouse", "a ramen shop", "a rooftop garden", "a floating market",
-      "a mountain temple", "a small harbour", "a treehouse village", "a train station",
-      "a desert outpost", "a hidden waterfall"
-    ]
-  },
-  anime: {
-    label: "Anime and manga",
-    subjects: [
-      "a swordswoman", "a ninja on a rooftop", "a mecha pilot", "a magical girl",
-      "a wandering ronin", "a cat spirit", "a student with a mysterious power",
-      "a demon hunter", "an idol on stage", "a fox-eared warrior"
-    ]
-  },
-  characters: {
-    label: "Characters",
-    subjects: [
-      "an old wizard", "a retired robot", "a lighthouse keeper", "a space pirate",
-      "a village baker", "a fox spirit", "a tired knight", "a clockmaker",
-      "a deep-sea diver", "a travelling merchant"
-    ]
-  }
-};
-
-const moodData = {
-  peaceful: {
-    settings: ["on a quiet mountain", "beside a calm lake", "in a sunny meadow", "in a cosy cabin"],
-    details: ["bathed in soft morning light", "with gentle falling petals", "surrounded by sleeping animals", "under a warm sunset"]
-  },
-  dark: {
-    settings: ["in a ruined cathedral", "in a foggy graveyard", "deep in a cursed forest", "in a collapsed mine"],
-    details: ["lit by a single flickering candle", "covered in cracks and shadows", "watched by glowing eyes", "wrapped in creeping thorns"]
-  },
-  mysterious: {
-    settings: ["inside an abandoned train station", "in a hidden library", "at the end of a foggy pier", "in a room with no doors"],
-    details: ["with a locked door that hums", "with strange symbols on the walls", "half hidden in mist", "with a note nobody can read"]
-  },
-  futuristic: {
-    settings: ["in a neon-lit alley", "on a floating city platform", "inside a space station", "in a rain-soaked cyber market"],
-    details: ["glowing with holographic light", "with robotic parts showing", "reflected in wet neon streets", "surrounded by drifting drones"]
-  },
-  fantasy: {
-    settings: ["floating above the clouds", "inside a giant tree", "at the edge of a dragon's nest", "in a crystal cave"],
-    details: ["covered in glowing runes", "with tiny fairies circling", "wrapped in ancient magic", "with a faint golden aura"]
-  }
-};
+// The idea lists (categories and moodData) now live in ideas.js
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -115,18 +58,51 @@ filterKeys.forEach(key => {
 });
 renderPills();
 
+// ---------- Drawn ideas (exact ideas only) ----------
+function drawnTexts() {
+  return new Set(history.map(p => p.text));
+}
+
 // ---------- Prompt engine ----------
 const seenThisSitting = new Set();
 
 // forced is optional: { catKey, subject } when picked from Explore
 function buildPrompt(forced) {
   const f = getFilters();
-  const catKey = forced
-    ? forced.catKey
-    : (f.category === "any" ? pick(Object.keys(categories)) : f.category);
+  const drawn = drawnTexts();
+  let style = f.style === "any" ? pick(["simple", "detailed"]) : f.style;
+  let catKey;
+  let subject;
+
+  if (forced) {
+    catKey = forced.catKey;
+    subject = forced.subject;
+    // A simple idea is identical every time, so if it's drawn, go detailed instead
+    if (style === "simple" && drawn.has(`Draw ${subject}.`)) {
+      if (f.style === "any") style = "detailed";
+      else return null;
+    }
+  } else {
+    const catKeys = f.category === "any" ? Object.keys(categories) : [f.category];
+    const pool = [];
+    catKeys.forEach(key => {
+      categories[key].subjects.forEach(s => pool.push({ catKey: key, subject: s }));
+    });
+    // Simple ideas never change, so skip the ones you've already drawn
+    let options = style === "simple"
+      ? pool.filter(c => !drawn.has(`Draw ${c.subject}.`))
+      : pool;
+    if (options.length === 0 && f.style === "any") {
+      style = "detailed";
+      options = pool;
+    }
+    if (options.length === 0) return null;
+    const choice = pick(options);
+    catKey = choice.catKey;
+    subject = choice.subject;
+  }
+
   const cat = categories[catKey];
-  const style = f.style === "any" ? pick(["simple", "detailed"]) : f.style;
-  const subject = forced ? forced.subject : pick(cat.subjects);
   const title = cap(subject);
 
   if (style === "simple") {
@@ -147,8 +123,12 @@ function generatePrompt() {
   let tries = 0;
   do {
     prompt = buildPrompt();
+    if (!prompt) return null;
     tries++;
-  } while (seenThisSitting.has(prompt.text) && tries < 100);
+  } while (
+    (seenThisSitting.has(prompt.text) || drawnTexts().has(prompt.text)) &&
+    tries < 100
+  );
   seenThisSitting.add(prompt.text);
   return prompt;
 }
@@ -199,14 +179,23 @@ function showHistory() {
     list.innerHTML = "<p>Nothing drawn yet.</p>";
     return;
   }
-  list.innerHTML = [...history]
-    .reverse()
-    .map(p => `<div class="saved-item history-item">
+  const items = history
+    .map((p, i) => `<div class="saved-item history-item">
         <strong>${p.title}</strong>${p.text}
         <small>Drawn on ${p.date}</small>
+        <button class="delete-btn hist-remove-btn" data-index="${i}">🗑 Remove</button>
       </div>`)
+    .reverse()
     .join("");
+  list.innerHTML = `<p class="hint">An idea you mark as drawn won’t come up again in exactly the same form. Remove it here to bring it back.</p>` + items;
 }
+
+document.getElementById("history-list").addEventListener("click", e => {
+  if (!e.target.classList.contains("hist-remove-btn")) return;
+  history.splice(Number(e.target.dataset.index), 1);
+  saveHistory();
+  showHistory();
+});
 
 // Returns true if added, false if it was already in history
 function addToHistory(prompt) {
@@ -267,7 +256,16 @@ function showPrompt(prompt) {
 }
 
 document.getElementById("new-idea").addEventListener("click", () => {
-  showPrompt(generatePrompt());
+  const prompt = generatePrompt();
+  if (!prompt) {
+    currentPrompt = null;
+    document.getElementById("prompt-title").textContent = "Nothing left here";
+    document.getElementById("prompt-text").textContent =
+      "You’ve drawn every simple idea here. Try Detailed style or another category.";
+    document.getElementById("prompt-tags").textContent = "";
+    return;
+  }
+  showPrompt(prompt);
 });
 
 document.getElementById("save-idea").addEventListener("click", () => {
@@ -295,19 +293,27 @@ document.getElementById("drew-idea").addEventListener("click", () => {
 });
 
 // ---------- Explore: search and browse ----------
+const openCats = new Set();
+
 function renderBrowse(query = "") {
   const q = query.trim().toLowerCase();
+  const searching = q !== "";
   let html = "";
 
   Object.keys(categories).forEach(key => {
     const cat = categories[key];
     const matches = cat.subjects.filter(s => s.toLowerCase().includes(q));
     if (matches.length === 0) return;
-    html += `<h2 class="browse-heading">${cat.label}</h2><div class="browse-grid">`
+    // While searching, matching headings open by themselves
+    const isOpen = searching || openCats.has(key);
+    html += `<div class="browse-group${isOpen ? " open" : ""}">`
+      + `<button class="browse-head" data-key="${key}" aria-expanded="${isOpen}">`
+      + `<span>${cat.label}</span><span class="chev">▾</span></button>`
+      + `<div class="browse-grid">`
       + matches.map(s =>
           `<button class="subject-chip" data-cat="${key}" data-subject="${s}">${cap(s)}</button>`
         ).join("")
-      + `</div>`;
+      + `</div></div>`;
   });
 
   document.getElementById("browse-list").innerHTML =
@@ -329,12 +335,33 @@ clearBtn.addEventListener("click", () => {
 });
 
 document.getElementById("browse-list").addEventListener("click", e => {
+  const head = e.target.closest(".browse-head");
+  if (head) {
+    const group = head.parentElement;
+    const isOpen = group.classList.toggle("open");
+    head.setAttribute("aria-expanded", String(isOpen));
+    if (searchBox.value.trim() === "") {
+      if (isOpen) openCats.add(head.dataset.key);
+      else openCats.delete(head.dataset.key);
+    }
+    return;
+  }
+
   const chip = e.target.closest(".subject-chip");
   if (!chip) return;
   const prompt = buildPrompt({
     catKey: chip.dataset.cat,
     subject: chip.dataset.subject
   });
+  if (!prompt) {
+    currentPrompt = null;
+    document.getElementById("prompt-title").textContent = "Already drawn";
+    document.getElementById("prompt-text").textContent =
+      "You’ve drawn this exact idea. Set Style to Detailed or Any for a fresh version.";
+    document.getElementById("prompt-tags").textContent = "";
+    showScreen("home");
+    return;
+  }
   seenThisSitting.add(prompt.text);
   showPrompt(prompt);
   showScreen("home");

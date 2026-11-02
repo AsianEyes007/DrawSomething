@@ -1,6 +1,6 @@
 const CACHE = "drawsomething";
 const FILES = [
-  "./", "index.html", "style.css", "script.js",
+  "./", "index.html", "style.css", "script.js", "ideas.js",
   "manifest.json", "icon-192.png", "icon-512.png"
 ];
 
@@ -21,6 +21,7 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.open(CACHE).then(cache =>
       cache.match(e.request).then(hit => {
