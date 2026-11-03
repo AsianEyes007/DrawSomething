@@ -372,3 +372,20 @@ nav button.active { color: #fff; }
   padding-top: 10px;
 }
 .browse-group.open .browse-grid { display: flex; }
+
+.setting-block {
+  background: #211e33;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.setting-block h2 {
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+.version {
+  text-align: center;
+  color: #8f88b5;
+  font-size: 0.8rem;
+  margin-top: 20px;
+}

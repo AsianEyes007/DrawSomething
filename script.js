@@ -2,6 +2,9 @@
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const esc = s => String(s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // ---------- Filter pills (Home) ----------
 const filterOptions = {
@@ -70,7 +73,10 @@ const seenThisSitting = new Set();
 function buildPrompt(forced) {
   const f = getFilters();
   const drawn = drawnTexts();
-  let style = f.style === "any" ? pick(["simple", "detailed"]) : f.style;
+  // Mood only applies to detailed ideas, so if a mood is picked, stay detailed
+  let style = f.style === "any"
+    ? (f.mood !== "any" ? "detailed" : pick(["simple", "detailed"]))
+    : f.style;
   let catKey;
   let subject;
 
@@ -181,8 +187,8 @@ function showHistory() {
   }
   const items = history
     .map((p, i) => `<div class="saved-item history-item">
-        <strong>${p.title}</strong>${p.text}
-        <small>Drawn on ${p.date}</small>
+        <strong>${esc(p.title)}</strong>${esc(p.text)}
+        <small>Drawn on ${esc(p.date)}</small>
         <button class="delete-btn hist-remove-btn" data-index="${i}">🗑 Remove</button>
       </div>`)
     .reverse()
@@ -220,7 +226,7 @@ function showSaved() {
   }
   list.innerHTML = saved
     .map((p, i) => `<div class="saved-item">
-        <strong>${p.title}</strong>${p.text}
+        <strong>${esc(p.title)}</strong>${esc(p.text)}
         <div class="saved-actions">
           <button class="drawn-btn" data-index="${i}">Drawn</button>
           <button class="delete-btn" data-index="${i}">🗑 Remove</button>
@@ -367,10 +373,129 @@ document.getElementById("browse-list").addEventListener("click", e => {
   showScreen("home");
 });
 
+// ---------- Version ----------
+const APP_VERSION = "1.1";
+const versionEl = document.getElementById("version");
+if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
+
+// ---------- Backup and restore ----------
+const exportBtn = document.getElementById("export-btn");
+const importBtn = document.getElementById("import-btn");
+const importFile = document.getElementById("import-file");
+const backupNote = document.getElementById("backup-note");
+const storageNote = document.getElementById("storage-note");
+const lastBackupEl = document.getElementById("last-backup");
+
+function showLastBackup() {
+  if (!lastBackupEl) return;
+  lastBackupEl.textContent =
+    "Backs up your saved and drawn ideas. Last backup: " +
+    (localStorage.getItem("lastBackup") || "never");
+}
+
+function exportBackup() {
+  const data = {
+    app: "DrawSomething",
+    appVersion: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    saved,
+    history
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "drawsomething-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  localStorage.setItem("lastBackup", new Date().toLocaleDateString());
+  showLastBackup();
+  backupNote.textContent =
+    "Backup saved to your Downloads. Keep a copy somewhere safe, like Google Drive.";
+}
+
+function cleanItem(p, withDate) {
+  if (!p || typeof p.text !== "string" || typeof p.title !== "string") return null;
+  const item = {
+    title: p.title,
+    text: p.text,
+    tags: typeof p.tags === "string" ? p.tags : ""
+  };
+  if (withDate) item.date = typeof p.date === "string" ? p.date : "";
+  return item;
+}
+
+// Importing adds what's missing and never deletes anything you already have
+function importBackup(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || data.app !== "DrawSomething") throw new Error("not a backup");
+
+      let addedSaved = 0;
+      let addedHistory = 0;
+      (Array.isArray(data.saved) ? data.saved : []).forEach(p => {
+        const item = cleanItem(p, false);
+        if (item && !saved.some(s => s.text === item.text)) {
+          saved.push(item);
+          addedSaved++;
+        }
+      });
+      (Array.isArray(data.history) ? data.history : []).forEach(p => {
+        const item = cleanItem(p, true);
+        if (item && !history.some(h => h.text === item.text)) {
+          history.push(item);
+          addedHistory++;
+        }
+      });
+
+      saveSaved();
+      saveHistory();
+      showSaved();
+      showHistory();
+      backupNote.textContent =
+        "Imported " + addedSaved + " saved and " + addedHistory + " drawn ideas.";
+    } catch (err) {
+      backupNote.textContent = "That file doesn’t look like a DrawSomething backup.";
+    }
+  };
+  reader.readAsText(file);
+}
+
+if (exportBtn && importBtn && importFile) {
+  exportBtn.addEventListener("click", exportBackup);
+  importBtn.addEventListener("click", () => importFile.click());
+  importFile.addEventListener("change", () => {
+    if (importFile.files && importFile.files[0]) importBackup(importFile.files[0]);
+    importFile.value = "";
+  });
+}
+
+// Ask Chrome to protect this app's data from being cleared when storage runs low
+async function protectStorage() {
+  if (!storageNote) return;
+  try {
+    if (!(navigator.storage && navigator.storage.persist)) return;
+    let ok = await navigator.storage.persisted();
+    if (!ok) ok = await navigator.storage.persist();
+    storageNote.textContent = ok
+      ? "Chrome has marked your data as protected from low-storage clearing."
+      : "Your data isn’t guaranteed to survive low storage, so export a backup now and then.";
+  } catch (err) {
+    // not supported here, nothing to show
+  }
+}
+
 // ---------- Start up ----------
 showSaved();
 showHistory();
 renderBrowse();
+showLastBackup();
+protectStorage();
 
 // ---------- Offline support ----------
 if ("serviceWorker" in navigator) {
