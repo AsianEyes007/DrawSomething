@@ -430,3 +430,23 @@ nav button.active { color: #fff; }
   padding: 8px 14px; border: none; border-radius: 10px;
   background: rgba(169, 157, 255, 0.2); color: #cfc8ff; font-size: 0.85rem;
 }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chips:empty { display: none; }
+.sel-chip {
+  padding: 8px 12px;
+  border: 1px solid rgba(124, 92, 255, 0.6);
+  border-radius: 999px;
+  background: rgba(124, 92, 255, 0.3);
+  color: #fff;
+  font-size: 0.85rem;
+}
+.sel-chip span { margin-left: 6px; opacity: 0.7; }
+.subject-chip.selected { background: rgba(124, 92, 255, 0.45); border-color: #7c5cff; }
+#explore-bar { position: fixed; left: 20px; right: 20px; bottom: 76px; z-index: 20; display: none; }
+#explore-bar.visible { display: block; }
+#explore-go {
+  width: 100%; padding: 14px; border: none; border-radius: 999px;
+  background: #7c5cff; color: #fff; font-size: 1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}

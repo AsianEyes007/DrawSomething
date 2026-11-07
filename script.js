@@ -1,5 +1,7 @@
 // The idea lists (categories and moodData) now live in ideas.js
 
+window.addEventListener("error", e => alert("Error: " + e.message + " (line " + e.lineno + ")"));
+
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const esc = s => String(s)
@@ -31,6 +33,16 @@ const filterOptions = {
 };
 const filterIndex = { category: 0, style: 0, mood: 0 };
 const filterKeys = ["category", "style", "mood"];
+let savedDefaults = {};
+try {
+  savedDefaults = JSON.parse(localStorage.getItem("defaultFilters") || "{}") || {};
+} catch (err) { /* ignore */ }
+filterKeys.forEach(key => {
+  const i = filterOptions[key].findIndex(o => o.value === savedDefaults[key]);
+  if (i >= 0) filterIndex[key] = i;
+});
+
+let selected = []; // subjects picked in Explore: { catKey, subject }
 
 function getFilters() {
   return {
@@ -67,41 +79,32 @@ function drawnTexts() {
 // ---------- Prompt engine ----------
 const seenThisSitting = new Set();
 
-// forced is optional: { catKey, subject } when picked from Explore
-function buildPrompt(forced) {
+function buildPrompt() {
   const f = getFilters();
   const drawn = drawnTexts();
   let style = f.style === "any" ? pick(["simple", "detailed"]) : f.style;
-  let catKey;
-  let subject;
 
-  if (forced) {
-    catKey = forced.catKey;
-    subject = forced.subject;
-    // A simple idea is identical every time, so if it's drawn, go detailed instead
-    if (style === "simple" && f.mood === "any" && drawn.has(`Draw ${subject}.`)) {
-      if (f.style === "any") style = "detailed";
-      else return null;
-    }
+  let pool = [];
+  if (selected.length > 0) {
+    pool = selected.slice();
   } else {
     const catKeys = f.category === "any" ? Object.keys(categories) : [f.category];
-    const pool = [];
     catKeys.forEach(key => {
       categories[key].subjects.forEach(s => pool.push({ catKey: key, subject: s }));
     });
-    // Simple ideas never change, so skip the ones you've already drawn
-    let options = style === "simple" && f.mood === "any"
-      ? pool.filter(c => !drawn.has(`Draw ${c.subject}.`))
-      : pool;
-    if (options.length === 0 && f.style === "any") {
-      style = "detailed";
-      options = pool;
-    }
-    if (options.length === 0) return null;
-    const choice = pick(options);
-    catKey = choice.catKey;
-    subject = choice.subject;
   }
+  // Simple ideas never change, so skip the ones you've already drawn
+  let options = style === "simple" && f.mood === "any"
+    ? pool.filter(c => !drawn.has(`Draw ${c.subject}.`))
+    : pool;
+  if (options.length === 0 && f.style === "any") {
+    style = "detailed";
+    options = pool;
+  }
+  if (options.length === 0) return null;
+  const choice = pick(options);
+  const catKey = choice.catKey;
+  const subject = choice.subject;
 
   const cat = categories[catKey];
   const title = cap(subject);
@@ -272,18 +275,19 @@ function showPrompt(prompt) {
   document.getElementById("prompt-tags").textContent = prompt.tags;
 }
 
-document.getElementById("new-idea").addEventListener("click", () => {
+function newIdea() {
   const prompt = generatePrompt();
   if (!prompt) {
     currentPrompt = null;
     document.getElementById("prompt-title").textContent = "Nothing left here";
     document.getElementById("prompt-text").textContent =
-      "You’ve drawn every simple idea here. Try Detailed style or another category.";
+      "You’ve drawn every simple idea here. Try Detailed style or other subjects.";
     document.getElementById("prompt-tags").textContent = "";
     return;
   }
   showPrompt(prompt);
-});
+}
+document.getElementById("new-idea").addEventListener("click", newIdea);
 
 document.getElementById("save-idea").addEventListener("click", () => {
   if (!currentPrompt) return;
@@ -328,7 +332,7 @@ function renderBrowse(query = "") {
       + `<span>${cat.label}</span><span class="chev">▾</span></button>`
       + `<div class="browse-grid">`
       + matches.map(s =>
-          `<button class="subject-chip" data-cat="${key}" data-subject="${s}">${cap(s)}</button>`
+          `<button class="subject-chip${isSelected(key, s) ? " selected" : ""}" data-cat="${key}" data-subject="${s}">${cap(s)}</button>`
         ).join("")
       + `</div></div>`;
   });
@@ -366,22 +370,13 @@ document.getElementById("browse-list").addEventListener("click", e => {
 
   const chip = e.target.closest(".subject-chip");
   if (!chip) return;
-  const prompt = buildPrompt({
-    catKey: chip.dataset.cat,
-    subject: chip.dataset.subject
-  });
-  if (!prompt) {
-    currentPrompt = null;
-    document.getElementById("prompt-title").textContent = "Already drawn";
-    document.getElementById("prompt-text").textContent =
-      "You’ve drawn this exact idea. Set Style to Detailed or Any for a fresh version.";
-    document.getElementById("prompt-tags").textContent = "";
-    showScreen("home");
-    return;
-  }
-  seenThisSitting.add(prompt.text);
-  showPrompt(prompt);
+  toggleSelected(chip.dataset.cat, chip.dataset.subject);
+  chip.classList.toggle("selected", isSelected(chip.dataset.cat, chip.dataset.subject));
+});
+
+document.getElementById("explore-go").addEventListener("click", () => {
   showScreen("home");
+  newIdea();
 });
 
 // ---------- Version ----------
@@ -606,18 +601,11 @@ let photoTarget = null;
 
 photoInput.addEventListener("change", async () => {
   const files = Array.from(photoInput.files || []);
-  alert("1. Picked " + files.length + " file(s). Idea: " + (photoTarget ? "ok" : "MISSING"));
   if (!files.length || !photoTarget) return;
   try {
-    for (const f of files) {
-      const small = await resizeImage(f);
-      alert("2. Resized to " + small.size + " bytes");
-      await addPhoto(photoTarget, small);
-    }
-    const n = (await getPhotos(photoTarget)).length;
-    alert("3. Photos stored for this idea: " + n);
+    for (const f of files) await addPhoto(photoTarget, await resizeImage(f));
   } catch (err) {
-    alert("ERROR: " + (err && err.message ? err.message : err));
+    alert("Couldn’t add that photo: " + (err && err.message ? err.message : err));
   }
   photoInput.value = "";
   loadPhotoRows();
@@ -664,10 +652,67 @@ document.getElementById("history-list").addEventListener("click", async e => {
   }
 });
 
+// ---------- Selected subjects (chips on Home) ----------
+function isSelected(catKey, subject) {
+  return selected.some(s => s.catKey === catKey && s.subject === subject);
+}
+
+function toggleSelected(catKey, subject) {
+  const i = selected.findIndex(s => s.catKey === catKey && s.subject === subject);
+  if (i >= 0) selected.splice(i, 1);
+  else selected.push({ catKey, subject });
+  renderSelected();
+}
+
+function renderSelected() {
+  document.getElementById("selected-chips").innerHTML = selected
+    .map((s, i) => `<button class="sel-chip" data-index="${i}">${esc(cap(s.subject))} <span>✕</span></button>`)
+    .join("");
+  document.getElementById("pill-category").classList.toggle("dim", selected.length > 0);
+  document.getElementById("explore-bar").classList.toggle("visible", selected.length > 0);
+  document.getElementById("explore-go").textContent = "Use " + selected.length + " selected →";
+}
+
+document.getElementById("selected-chips").addEventListener("click", e => {
+  const chip = e.target.closest(".sel-chip");
+  if (!chip) return;
+  selected.splice(Number(chip.dataset.index), 1);
+  renderSelected();
+  renderBrowse(searchBox.value);
+});
+
+// ---------- Default filters (Settings) ----------
+filterKeys.forEach(key => {
+  const sel = document.getElementById("def-" + key);
+  if (!sel) return;
+  sel.innerHTML = filterOptions[key]
+    .map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+  sel.value = savedDefaults[key] || "any";
+  sel.addEventListener("change", () => {
+    savedDefaults[key] = sel.value;
+    localStorage.setItem("defaultFilters", JSON.stringify(savedDefaults));
+    filterIndex[key] = filterOptions[key].findIndex(o => o.value === sel.value);
+    renderPills();
+  });
+});
+
+// ---------- Settings open/close ----------
+document.getElementById("open-settings").addEventListener("click", () => {
+  document.getElementById("history-main").classList.add("hidden");
+  document.getElementById("history-settings").classList.add("open");
+  window.scrollTo(0, 0);
+});
+document.getElementById("settings-back").addEventListener("click", () => {
+  document.getElementById("history-main").classList.remove("hidden");
+  document.getElementById("history-settings").classList.remove("open");
+  window.scrollTo(0, 0);
+});
+
 // ---------- Start up ----------
 showSaved();
 showHistory();
 renderBrowse();
+renderSelected();
 showLastBackup();
 protectStorage();
 

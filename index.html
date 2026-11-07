@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+  window.onerror = function (m, s, l) {
+    alert("Error: " + m + " @ " + String(s).split("/").pop() + ":" + l);
+  };
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DrawSomething</title>
   <link rel="manifest" href="manifest.json">
@@ -33,6 +38,8 @@
         </button>
       </div>
 
+      <div id="selected-chips" class="chips"></div>
+      
       <button id="new-idea">🎲 New idea</button>
       <div class="save-wrap">
         <button id="save-idea" class="secondary">⭐ Save this idea</button>
@@ -47,8 +54,9 @@
         <input id="search" type="search" placeholder="Search subjects, e.g. sword or fox">
         <button id="clear-search" class="clear-btn" aria-label="Clear search">✕</button>
       </div>
-      <p class="hint">Tap a heading to open it, then tap a subject.</p>
+      <p class="hint">Tap a heading to open it, then tap subjects to select them. You can pick several.</p>
       <div id="browse-list"></div>
+      <div id="explore-bar"><button id="explore-go">Use selected →</button></div>
     </section>
 
     <section id="saved" class="screen">
@@ -57,19 +65,27 @@
 </section>
 
     <section id="history" class="screen">
-    <div id="history-main">
+  <div id="history-main">
     <div class="page-head">
       <h1>History</h1>
       <button id="open-settings" class="icon-btn" aria-label="Settings">⚙️</button>
     </div>
     <div id="history-list"><p>Nothing drawn yet.</p></div>
-    </div>
+  </div>
 
-    <div id="history-settings" class="subpage">
+  <div id="history-settings" class="subpage">
     <button id="settings-back" class="back-btn">‹ Back to History</button>
     <h1>Settings</h1>
 
-      <div class="setting-block">
+    <div class="setting-block">
+      <h2>Default filters</h2>
+      <p class="hint">Home starts with these every time you open the app.</p>
+      <label class="filter">Category <select id="def-category"></select></label>
+      <label class="filter">Style <select id="def-style"></select></label>
+      <label class="filter">Mood <select id="def-mood"></select></label>
+    </div>
+
+    <div class="setting-block">
       <h2>Backup</h2>
       <p id="last-backup" class="hint"></p>
       <button id="export-btn" class="secondary">Export backup</button>
@@ -86,7 +102,7 @@
 
     <p id="version" class="version"></p>
   </div>
-</section>
+    </section>
   </main>
 
   <nav>
