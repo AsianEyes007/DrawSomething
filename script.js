@@ -45,8 +45,6 @@ function renderPills() {
     document.getElementById("val-" + key).textContent =
       filterOptions[key][filterIndex[key]].label;
   });
-  // Mood has no effect on simple ideas, so lock it
-  document.getElementById("pill-mood").disabled = getFilters().style === "simple";
 }
 
 filterKeys.forEach(key => {
@@ -73,10 +71,7 @@ const seenThisSitting = new Set();
 function buildPrompt(forced) {
   const f = getFilters();
   const drawn = drawnTexts();
-  // Mood only applies to detailed ideas, so if a mood is picked, stay detailed
-  let style = f.style === "any"
-    ? (f.mood !== "any" ? "detailed" : pick(["simple", "detailed"]))
-    : f.style;
+  let style = f.style === "any" ? pick(["simple", "detailed"]) : f.style;
   let catKey;
   let subject;
 
@@ -84,7 +79,7 @@ function buildPrompt(forced) {
     catKey = forced.catKey;
     subject = forced.subject;
     // A simple idea is identical every time, so if it's drawn, go detailed instead
-    if (style === "simple" && drawn.has(`Draw ${subject}.`)) {
+    if (style === "simple" && f.mood === "any" && drawn.has(`Draw ${subject}.`)) {
       if (f.style === "any") style = "detailed";
       else return null;
     }
@@ -95,7 +90,7 @@ function buildPrompt(forced) {
       categories[key].subjects.forEach(s => pool.push({ catKey: key, subject: s }));
     });
     // Simple ideas never change, so skip the ones you've already drawn
-    let options = style === "simple"
+    let options = style === "simple" && f.mood === "any"
       ? pool.filter(c => !drawn.has(`Draw ${c.subject}.`))
       : pool;
     if (options.length === 0 && f.style === "any") {
@@ -112,7 +107,15 @@ function buildPrompt(forced) {
   const title = cap(subject);
 
   if (style === "simple") {
-    return { title, text: `Draw ${subject}.`, tags: `${cat.label} · Simple` };
+    if (f.mood === "any") {
+      return { title, text: `Draw ${subject}.`, tags: `${cat.label} · Simple` };
+    }
+    const feel = pick(moodData[f.mood].feels);
+    return {
+      title,
+      text: `Draw ${subject}, ${feel}.`,
+      tags: `${cat.label} · Simple · ${cap(f.mood)}`
+    };
   }
 
   const moodKey = f.mood === "any" ? pick(Object.keys(moodData)) : f.mood;
@@ -164,7 +167,10 @@ function showScreen(name) {
 }
 
 navButtons.forEach(btn => {
-  btn.addEventListener("click", () => showScreen(btn.dataset.screen));
+    btn.addEventListener("click", () => {
+    showScreen(btn.dataset.screen);
+    if (btn.dataset.screen === "history") showHistoryView(false);
+  });
 });
 
 // ---------- Stored lists ----------
@@ -374,7 +380,7 @@ document.getElementById("browse-list").addEventListener("click", e => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "1.1";
+const APP_VERSION = "1.4";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
@@ -388,9 +394,9 @@ const lastBackupEl = document.getElementById("last-backup");
 
 function showLastBackup() {
   if (!lastBackupEl) return;
-  lastBackupEl.textContent =
-    "Backs up your saved and drawn ideas. Last backup: " +
-    (localStorage.getItem("lastBackup") || "never");
+    lastBackupEl.innerHTML =
+    "Backs up your saved and drawn ideas.<br>Last backup: " +
+    esc(localStorage.getItem("lastBackup") || "never");
 }
 
 function exportBackup() {
@@ -479,7 +485,11 @@ if (exportBtn && importBtn && importFile) {
 async function protectStorage() {
   if (!storageNote) return;
   try {
-    if (!(navigator.storage && navigator.storage.persist)) return;
+        if (!(navigator.storage && navigator.storage.persist)) {
+      storageNote.textContent =
+        "Storage protection isn’t available here, so export a backup now and then.";
+      return;
+    }
     let ok = await navigator.storage.persisted();
     if (!ok) ok = await navigator.storage.persist();
     storageNote.textContent = ok
@@ -489,6 +499,19 @@ async function protectStorage() {
     // not supported here, nothing to show
   }
 }
+
+// ---------- History page: settings sub-page ----------
+const historyMain = document.getElementById("history-main");
+const historySettings = document.getElementById("history-settings");
+
+function showHistoryView(showSettings) {
+  historyMain.classList.toggle("hidden", showSettings);
+  historySettings.classList.toggle("open", showSettings);
+  if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0);
+}
+
+document.getElementById("open-settings").addEventListener("click", () => showHistoryView(true));
+document.getElementById("settings-back").addEventListener("click", () => showHistoryView(false));
 
 // ---------- Start up ----------
 showSaved();

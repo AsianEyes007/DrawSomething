@@ -389,3 +389,30 @@ nav button.active { color: #fff; }
   font-size: 0.8rem;
   margin-top: 20px;
 }
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-head h1 { margin-bottom: 0; }
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 1.2rem;
+}
+.back-btn {
+  border: none;
+  background: none;
+  color: #a99dff;
+  font-size: 1rem;
+  padding: 6px 0;
+  margin-bottom: 10px;
+}
+.subpage { display: none; }
+.subpage.open { display: block; }
+#history-main.hidden { display: none; }

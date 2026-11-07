@@ -51,29 +51,42 @@
       <div id="browse-list"></div>
     </section>
 
-    <section id="saved" class="screen"><h1>Saved</h1><div id="saved-list"><p>Nothing saved yet.</p></div></section>
-    <section id="history" class="screen"><h1>History</h1><div id="history-list"><p>Nothing drawn yet.</p></div></section>
+    <section id="saved" class="screen">
+  <h1>Saved</h1>
+  <div id="saved-list"><p>Nothing saved yet.</p></div>
+</section>
 
-    <section id="settings" class="screen">
-      <h1>Settings</h1>
+    <section id="history" class="screen">
+    <div id="history-main">
+    <div class="page-head">
+      <h1>History</h1>
+      <button id="open-settings" class="icon-btn" aria-label="Settings">⚙️</button>
+    </div>
+    <div id="history-list"><p>Nothing drawn yet.</p></div>
+    </div>
+
+    <div id="history-settings" class="subpage">
+    <button id="settings-back" class="back-btn">‹ Back to History</button>
+    <h1>Settings</h1>
 
       <div class="setting-block">
-        <h2>Backup</h2>
-        <p id="last-backup" class="hint"></p>
-        <button id="export-btn" class="secondary">Export backup</button>
-        <button id="import-btn" class="secondary">Import backup</button>
-        <input type="file" id="import-file" accept=".json,application/json" hidden>
-        <p id="backup-note" class="hint"></p>
-        <p class="hint">Importing only adds ideas that are missing. It never deletes anything you already have.</p>
-      </div>
+      <h2>Backup</h2>
+      <p id="last-backup" class="hint"></p>
+      <button id="export-btn" class="secondary">Export backup</button>
+      <button id="import-btn" class="secondary">Import backup</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+      <p id="backup-note" class="hint"></p>
+      <p class="hint">Importing only adds ideas that are missing. It never deletes anything you already have.</p>
+    </div>
 
-      <div class="setting-block">
-        <h2>Storage</h2>
-        <p id="storage-note" class="hint">Checking storage protection...</p>
-      </div>
+    <div class="setting-block">
+      <h2>Storage</h2>
+      <p id="storage-note" class="hint">Checking storage protection...</p>
+    </div>
 
-      <p id="version" class="version"></p>
-    </section>
+    <p id="version" class="version"></p>
+  </div>
+</section>
   </main>
 
   <nav>
@@ -81,7 +94,6 @@
     <button data-screen="explore">🔍<span>Explore</span></button>
     <button data-screen="saved">⭐<span>Saved</span></button>
     <button data-screen="history">🕘<span>History</span></button>
-    <button data-screen="settings">⚙️<span>Settings</span></button>
   </nav>
 
   <script src="ideas.js"></script>
