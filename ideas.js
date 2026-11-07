@@ -195,6 +195,8 @@ const categories = {
   }
 };
 
+// For each mood: "settings" and "details" build detailed ideas,
+// "feels" are short phrases for simple ideas (Draw a compass, calm and gentle.)
 const moodData = {
   peaceful: {
     settings: [
@@ -216,6 +218,11 @@ const moodData = {
       "with smoke curling from a chimney", "with a warm cup of tea", "with drifting dandelion seeds",
       "in warm pastel colours", "with sunlight through the leaves", "with a quiet, slow feeling",
       "with laundry swaying on a line", "with fireflies starting to appear", "with a flock of birds crossing the sky"
+    ],
+    feels: [
+      "calm and gentle", "soft and quiet", "warm and relaxed",
+      "slow and sleepy", "gentle and dreamy", "cosy and still",
+      "light and airy", "sunny and carefree"
     ]
   },
   dark: {
@@ -238,6 +245,11 @@ const moodData = {
       "with deep red lighting", "with broken stained glass", "with a figure standing in the distance",
       "with thick black smoke", "with barbed vines", "with a lantern about to go out",
       "with whispering shadows", "with rusted bars and chains", "with a single beam of light"
+    ],
+    feels: [
+      "dark and moody", "gloomy and ominous", "cold and brooding",
+      "eerie and shadowy", "heavy and grim", "haunting and bleak",
+      "menacing and tense", "stormy and sinister"
     ]
   },
   mysterious: {
@@ -260,6 +272,11 @@ const moodData = {
       "with a shadow cast by nothing", "with a trail of glowing footprints", "with a locked box that rattles",
       "with a single red umbrella", "with a melody coming from nowhere", "with a staircase that spirals up forever",
       "with an unreadable sign", "with a hand-drawn map", "with a candle that never burns down"
+    ],
+    feels: [
+      "strange and secretive", "hazy and enigmatic", "curious and uncanny",
+      "hidden and cryptic", "foggy and uncertain", "puzzling and dreamlike",
+      "quiet and unexplained", "shadowed and intriguing"
     ]
   },
   futuristic: {
@@ -282,6 +299,11 @@ const moodData = {
       "with tiny drones buzzing", "with a transparent display glowing", "with chrome and glass everywhere",
       "with a purple and teal glow", "with a lone figure in a long coat", "with rain streaking the light",
       "with floating lanterns of light", "with a huge planet filling the sky", "with a faint hum of machines"
+    ],
+    feels: [
+      "sleek and neon", "high-tech and glowing", "cold and metallic",
+      "cyber and chrome", "bright and digital", "robotic and polished",
+      "electric and bold", "space-age and clean"
     ]
   },
   fantasy: {
@@ -304,6 +326,11 @@ const moodData = {
       "with a staff humming with power", "with tiny lanterns drifting up", "with a rainbow-coloured sky",
       "with enchanted vines creeping", "with a golden aura around it", "with a sleeping giant in the distance",
       "with floating islands in the sky", "with a hidden door in the wall", "with an old map glowing on the table"
+    ],
+    feels: [
+      "magical and glowing", "epic and storybook", "whimsical and enchanted",
+      "ancient and mythical", "heroic and legendary", "wondrous and golden",
+      "mystical and grand", "sparkling and enchanted"
     ]
   }
 };

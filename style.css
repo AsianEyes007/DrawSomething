@@ -416,3 +416,17 @@ nav button.active { color: #fff; }
 .subpage { display: none; }
 .subpage.open { display: block; }
 #history-main.hidden { display: none; }
+
+.photo-row { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
+.photo-row:empty { display: none; }
+.thumb { position: relative; flex: 0 0 auto; }
+.thumb img { width: 90px; height: 90px; object-fit: cover; border-radius: 10px; display: block; }
+.thumb-del {
+  position: absolute; top: 4px; right: 4px;
+  width: 24px; height: 24px; border: none; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 0.7rem;
+}
+.photo-add-btn {
+  padding: 8px 14px; border: none; border-radius: 10px;
+  background: rgba(169, 157, 255, 0.2); color: #cfc8ff; font-size: 0.85rem;
+}

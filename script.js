@@ -195,11 +195,16 @@ function showHistory() {
     .map((p, i) => `<div class="saved-item history-item">
         <strong>${esc(p.title)}</strong>${esc(p.text)}
         <small>Drawn on ${esc(p.date)}</small>
-        <button class="delete-btn hist-remove-btn" data-index="${i}">🗑 Remove</button>
+        <div class="photo-row" data-index="${i}"></div>
+        <div class="saved-actions">
+          <button class="photo-add-btn" data-index="${i}">📷 Add photo</button>
+          <button class="delete-btn hist-remove-btn" data-index="${i}">🗑 Remove</button>
+        </div>
       </div>`)
     .reverse()
     .join("");
   list.innerHTML = `<p class="hint">An idea you mark as drawn won’t come up again in exactly the same form. Remove it here to bring it back.</p>` + items;
+  loadPhotoRows();
 }
 
 document.getElementById("history-list").addEventListener("click", e => {
@@ -510,8 +515,154 @@ function showHistoryView(showSettings) {
   if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0);
 }
 
-document.getElementById("open-settings").addEventListener("click", () => showHistoryView(true));
-document.getElementById("settings-back").addEventListener("click", () => showHistoryView(false));
+
+// ---------- Photos (IndexedDB) ----------
+let dbPromise;
+function openDB() {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open("drawsomething-photos", 1);
+      req.onupgradeneeded = () => {
+        const store = req.result.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
+        store.createIndex("ideaText", "ideaText");
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return dbPromise;
+}
+function dbTx(mode, fn) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const t = db.transaction("photos", mode);
+    const req = fn(t.objectStore("photos"));
+    t.oncomplete = () => resolve(req.result);
+    t.onerror = () => reject(t.error);
+  }));
+}
+const addPhoto = async (ideaText, blob) => {
+  const data = await blob.arrayBuffer();
+  return dbTx("readwrite", s =>
+    s.add({ ideaText, data, type: blob.type || "image/jpeg", added: Date.now() })
+  );
+};
+const getPhotos = ideaText =>
+  dbTx("readonly", s => s.index("ideaText").getAll(ideaText));
+const deletePhoto = id =>
+  dbTx("readwrite", s => s.delete(id));
+
+function resizeImage(file, max = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => (b ? resolve(b) : reject(new Error("fail"))), "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+
+let photoUrls = [];
+let photoRun = 0;
+async function loadPhotoRows() {
+  const run = ++photoRun;
+  const rows = document.querySelectorAll(".photo-row");
+  const newUrls = [];
+  for (const row of rows) {
+    const item = history[Number(row.dataset.index)];
+    if (!item) continue;
+    try {
+      const photos = (await getPhotos(item.text)).sort((a, b) => a.added - b.added);
+      if (run !== photoRun) return;
+      row.innerHTML = photos.map(p => {
+        const blob = new Blob([p.data], { type: p.type });
+        const url = URL.createObjectURL(blob);
+        newUrls.push(url);
+        return `<div class="thumb"><img src="${url}" data-full="${url}" alt="My drawing">`
+          + `<button class="thumb-del" data-id="${p.id}" aria-label="Delete photo">✕</button></div>`;
+      }).join("");
+    } catch (err) {
+      row.textContent = "Couldn’t load photos: " + err.message;
+    }
+  }
+  photoUrls.forEach(u => URL.revokeObjectURL(u));
+  photoUrls = newUrls;
+}
+
+const photoInput = document.createElement("input");
+photoInput.type = "file";
+photoInput.accept = "image/*";
+photoInput.multiple = true;
+photoInput.hidden = true;
+document.body.appendChild(photoInput);
+let photoTarget = null;
+
+photoInput.addEventListener("change", async () => {
+  const files = Array.from(photoInput.files || []);
+  alert("1. Picked " + files.length + " file(s). Idea: " + (photoTarget ? "ok" : "MISSING"));
+  if (!files.length || !photoTarget) return;
+  try {
+    for (const f of files) {
+      const small = await resizeImage(f);
+      alert("2. Resized to " + small.size + " bytes");
+      await addPhoto(photoTarget, small);
+    }
+    const n = (await getPhotos(photoTarget)).length;
+    alert("3. Photos stored for this idea: " + n);
+  } catch (err) {
+    alert("ERROR: " + (err && err.message ? err.message : err));
+  }
+  photoInput.value = "";
+  loadPhotoRows();
+});
+
+const lightbox = document.createElement("div");
+lightbox.className = "lightbox";
+lightbox.innerHTML = '<img alt="">';
+document.body.appendChild(lightbox);
+lightbox.addEventListener("click", () => lightbox.classList.remove("open"));
+
+document.getElementById("history-list").addEventListener("click", async e => {
+  const t = e.target;
+
+  if (t.classList.contains("photo-add-btn")) {
+    const item = history[Number(t.dataset.index)];
+    if (!item) return;
+    photoTarget = item.text;
+    photoInput.click();
+    return;
+  }
+  if (t.classList.contains("thumb-del")) {
+    if (confirm("Delete this photo?")) {
+      await deletePhoto(Number(t.dataset.id));
+      loadPhotoRows();
+    }
+    return;
+  }
+  if (t.tagName === "IMG" && t.dataset.full) {
+    lightbox.querySelector("img").src = t.dataset.full;
+    lightbox.classList.add("open");
+    return;
+  }
+  if (t.classList.contains("hist-remove-btn")) {
+    const index = Number(t.dataset.index);
+    const item = history[index];
+    if (!item) return;
+    const photos = await getPhotos(item.text).catch(() => []);
+    if (photos.length && !confirm("Removing this also deletes its " + photos.length + " photo(s). Continue?")) return;
+    for (const p of photos) await deletePhoto(p.id);
+    history.splice(index, 1);
+    saveHistory();
+    showHistory();
+  }
+});
 
 // ---------- Start up ----------
 showSaved();
