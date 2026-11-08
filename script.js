@@ -194,28 +194,48 @@ function showHistory() {
     list.innerHTML = "<p>Nothing drawn yet.</p>";
     return;
   }
-  const items = history
-    .map((p, i) => `<div class="saved-item history-item">
+
+  const q = (document.getElementById("history-search").value || "").trim().toLowerCase();
+  const moodV = document.getElementById("hist-mood").value || "any";
+  const styleV = document.getElementById("hist-style").value || "any";
+  const filtering = q !== "" || moodV !== "any" || styleV !== "any";
+
+  const shown = history
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => {
+      const parts = (p.tags || "").toLowerCase().split(" · ");
+      if (moodV !== "any" && !parts.includes(moodV)) return false;
+      if (styleV !== "any" && !parts.includes(styleV)) return false;
+      const all = (p.title || "") + " " + (p.text || "") + " " + (p.tags || "");
+      if (q && !all.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+  if (shown.length === 0) {
+    list.innerHTML = "<p>Nothing matches that search.</p>";
+    return;
+  }
+
+  const items = shown
+    .map(({ p, i }) => `<div class="saved-item history-item">
         <strong>${esc(p.title)}</strong>${esc(p.text)}
         <small>Drawn on ${esc(p.date)}</small>
         <div class="photo-row" data-index="${i}"></div>
         <div class="saved-actions">
           <button class="photo-add-btn" data-index="${i}">Add photo</button>
-          <button class="delete-btn hist-remove-btn" data-index="${i}"> Remove</button>
+          <button class="compare-btn" data-index="${i}" hidden>Compare</button>
+          <button class="delete-btn hist-remove-btn" data-index="${i}">Remove</button>
         </div>
       </div>`)
     .reverse()
     .join("");
-  list.innerHTML = `<p class="hint">An idea you mark as drawn won’t come up again in exactly the same form. Remove it here to bring it back.</p>` + items;
+
+  const note = filtering
+    ? `<p class="hint">Showing ${shown.length} of ${history.length} drawn ideas.</p>`
+    : `<p class="hint">An idea you mark as drawn won’t come up again in exactly the same form. Remove it here to bring it back.</p>`;
+  list.innerHTML = note + items;
   loadPhotoRows();
 }
-
-document.getElementById("history-list").addEventListener("click", e => {
-  if (!e.target.classList.contains("hist-remove-btn")) return;
-  history.splice(Number(e.target.dataset.index), 1);
-  saveHistory();
-  showHistory();
-});
 
 // Returns true if added, false if it was already in history
 function addToHistory(prompt) {
@@ -380,7 +400,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.2.0";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
@@ -395,19 +415,56 @@ const lastBackupEl = document.getElementById("last-backup");
 function showLastBackup() {
   if (!lastBackupEl) return;
     lastBackupEl.innerHTML =
-    "Backs up your saved and drawn ideas.<br>Last backup: " +
+    "Backs up your saved ideas, drawn ideas and photos.<br>Last backup: " +
     esc(localStorage.getItem("lastBackup") || "never");
 }
 
-function exportBackup() {
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+function dataURLToBuffer(url) {
+  const bin = atob(url.slice(url.indexOf(",") + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+const getAllPhotos = () => dbTx("readonly", s => s.getAll());
+
+async function exportBackup() {
+  backupNote.textContent = "Preparing backup...";
+  const photos = [];
+  try {
+    const all = await getAllPhotos();
+    for (const p of all) {
+      const type = p.type || "image/jpeg";
+      photos.push({
+        ideaText: p.ideaText,
+        added: p.added,
+        type,
+        image: await blobToDataURL(new Blob([p.data], { type }))
+      });
+    }
+  } catch (err) {
+    backupNote.textContent = "Couldn’t read your photos, so no backup was saved.";
+    return;
+  }
+
   const data = {
     app: "DrawSomething",
     appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
     saved,
-    history
+    history,
+    photos
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -420,7 +477,7 @@ function exportBackup() {
   localStorage.setItem("lastBackup", new Date().toLocaleDateString());
   showLastBackup();
   backupNote.textContent =
-    "Backup saved to your Downloads. Keep a copy somewhere safe, like Google Drive.";
+    "Backup saved to your Downloads with " + photos.length + " photo(s). Keep a copy somewhere safe, like Google Drive.";
 }
 
 function cleanItem(p, withDate) {
@@ -437,48 +494,64 @@ function cleanItem(p, withDate) {
 // Importing adds what's missing and never deletes anything you already have
 function importBackup(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    let data;
     try {
-      const data = JSON.parse(reader.result);
+      data = JSON.parse(reader.result);
       if (!data || data.app !== "DrawSomething") throw new Error("not a backup");
-
-      let addedSaved = 0;
-      let addedHistory = 0;
-      (Array.isArray(data.saved) ? data.saved : []).forEach(p => {
-        const item = cleanItem(p, false);
-        if (item && !saved.some(s => s.text === item.text)) {
-          saved.push(item);
-          addedSaved++;
-        }
-      });
-      (Array.isArray(data.history) ? data.history : []).forEach(p => {
-        const item = cleanItem(p, true);
-        if (item && !history.some(h => h.text === item.text)) {
-          history.push(item);
-          addedHistory++;
-        }
-      });
-
-      saveSaved();
-      saveHistory();
-      showSaved();
-      showHistory();
-      backupNote.textContent =
-        "Imported " + addedSaved + " saved and " + addedHistory + " drawn ideas.";
     } catch (err) {
       backupNote.textContent = "That file doesn’t look like a DrawSomething backup.";
+      return;
     }
+
+    let addedSaved = 0;
+    let addedHistory = 0;
+    let addedPhotos = 0;
+    let photoFailed = false;
+
+    (Array.isArray(data.saved) ? data.saved : []).forEach(p => {
+      const item = cleanItem(p, false);
+      if (item && !saved.some(s => s.text === item.text)) {
+        saved.push(item);
+        addedSaved++;
+      }
+    });
+    (Array.isArray(data.history) ? data.history : []).forEach(p => {
+      const item = cleanItem(p, true);
+      if (item && !history.some(h => h.text === item.text)) {
+        history.push(item);
+        addedHistory++;
+      }
+    });
+    saveSaved();
+    saveHistory();
+
+    if (Array.isArray(data.photos)) {
+      try {
+        const existing = new Set((await getAllPhotos()).map(p => p.ideaText + "|" + p.added));
+        for (const p of data.photos) {
+          if (!p || typeof p.ideaText !== "string" || typeof p.image !== "string") continue;
+          const added = typeof p.added === "number" ? p.added : Date.now();
+          const key = p.ideaText + "|" + added;
+          if (existing.has(key)) continue;
+          const buffer = dataURLToBuffer(p.image);
+          const type = typeof p.type === "string" ? p.type : "image/jpeg";
+          await dbTx("readwrite", s => s.add({ ideaText: p.ideaText, data: buffer, type, added }));
+          existing.add(key);
+          addedPhotos++;
+        }
+      } catch (err) {
+        photoFailed = true;
+      }
+    }
+
+    showSaved();
+    showHistory();
+    backupNote.textContent =
+      "Imported " + addedSaved + " saved ideas, " + addedHistory + " drawn ideas and " +
+      addedPhotos + " photo(s)." + (photoFailed ? " Some photos couldn’t be imported." : "");
   };
   reader.readAsText(file);
-}
-
-if (exportBtn && importBtn && importFile) {
-  exportBtn.addEventListener("click", exportBackup);
-  importBtn.addEventListener("click", () => importFile.click());
-  importFile.addEventListener("change", () => {
-    if (importFile.files && importFile.files[0]) importBackup(importFile.files[0]);
-    importFile.value = "";
-  });
 }
 
 // Ask Chrome to protect this app's data from being cleared when storage runs low
@@ -575,7 +648,10 @@ async function loadPhotoRows() {
     if (!item) continue;
     try {
       const photos = (await getPhotos(item.text)).sort((a, b) => a.added - b.added);
-      if (run !== photoRun) return;
+      if (run !== photoRun) {
+        newUrls.forEach(u => URL.revokeObjectURL(u));
+        return;
+      }
       row.innerHTML = photos.map(p => {
         const blob = new Blob([p.data], { type: p.type });
         const url = URL.createObjectURL(blob);
@@ -583,6 +659,9 @@ async function loadPhotoRows() {
         return `<div class="thumb"><img src="${url}" data-full="${url}" alt="My drawing">`
           + `<button class="thumb-del" data-id="${p.id}" aria-label="Delete photo">✕</button></div>`;
       }).join("");
+      const card = row.closest(".saved-item");
+      const cmp = card && card.querySelector(".compare-btn");
+      if (cmp) cmp.hidden = photos.length < 2;
     } catch (err) {
       row.textContent = "Couldn’t load photos: " + err.message;
     }
@@ -619,6 +698,12 @@ lightbox.addEventListener("click", () => lightbox.classList.remove("open"));
 
 document.getElementById("history-list").addEventListener("click", async e => {
   const t = e.target;
+
+    if (t.classList.contains("compare-btn")) {
+    const item = history[Number(t.dataset.index)];
+    if (item) openCompare(item.text, item.title);
+    return;
+  }
 
   if (t.classList.contains("photo-add-btn")) {
     const item = history[Number(t.dataset.index)];
@@ -707,6 +792,88 @@ document.getElementById("settings-back").addEventListener("click", () => {
   document.getElementById("history-settings").classList.remove("open");
   window.scrollTo(0, 0);
 });
+
+// ---------- Compare photos ----------
+const compare = document.createElement("div");
+compare.className = "compare";
+compare.innerHTML =
+  '<div class="compare-bar"><button class="compare-close">‹ Close</button><span class="compare-title"></span></div>' +
+  '<div class="compare-pick"><select class="compare-left" aria-label="Left photo"></select>' +
+  '<select class="compare-right" aria-label="Right photo"></select></div>' +
+  '<div class="compare-views"><img class="compare-img-left" alt="Left photo">' +
+  '<img class="compare-img-right" alt="Right photo"></div>';
+document.body.appendChild(compare);
+
+const cmpLeft = compare.querySelector(".compare-left");
+const cmpRight = compare.querySelector(".compare-right");
+const cmpImgLeft = compare.querySelector(".compare-img-left");
+const cmpImgRight = compare.querySelector(".compare-img-right");
+let compareUrls = [];
+
+function updateCompare() {
+  cmpImgLeft.src = compareUrls[Number(cmpLeft.value)] || "";
+  cmpImgRight.src = compareUrls[Number(cmpRight.value)] || "";
+}
+
+function closeCompare() {
+  compare.classList.remove("open");
+  cmpImgLeft.removeAttribute("src");
+  cmpImgRight.removeAttribute("src");
+  compareUrls.forEach(u => URL.revokeObjectURL(u));
+  compareUrls = [];
+}
+
+async function openCompare(ideaText, title) {
+  let photos;
+  try {
+    photos = (await getPhotos(ideaText)).sort((a, b) => a.added - b.added);
+  } catch (err) {
+    alert("Couldn’t load photos: " + err.message);
+    return;
+  }
+  if (photos.length < 2) return;
+  closeCompare();
+  compareUrls = photos.map(p => URL.createObjectURL(new Blob([p.data], { type: p.type })));
+  const options = photos
+    .map((p, i) => `<option value="${i}">Photo ${i + 1} · ${esc(new Date(p.added).toLocaleDateString())}</option>`)
+    .join("");
+  cmpLeft.innerHTML = options;
+  cmpRight.innerHTML = options;
+  cmpLeft.value = "0";
+  cmpRight.value = String(photos.length - 1);
+  compare.querySelector(".compare-title").textContent = title || "";
+  updateCompare();
+  compare.classList.add("open");
+}
+
+compare.querySelector(".compare-close").addEventListener("click", closeCompare);
+cmpLeft.addEventListener("change", updateCompare);
+cmpRight.addEventListener("change", updateCompare);
+
+// ---------- History search and filters ----------
+const histSearch = document.getElementById("history-search");
+const histClear = document.getElementById("history-clear");
+const histMood = document.getElementById("hist-mood");
+const histStyle = document.getElementById("hist-style");
+
+histMood.innerHTML = filterOptions.mood
+  .map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+histStyle.innerHTML = filterOptions.style
+  .map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+
+let histTimer;
+histSearch.addEventListener("input", () => {
+  histClear.classList.toggle("visible", histSearch.value !== "");
+  clearTimeout(histTimer);
+  histTimer = setTimeout(showHistory, 200);
+});
+histClear.addEventListener("click", () => {
+  histSearch.value = "";
+  histClear.classList.remove("visible");
+  showHistory();
+});
+histMood.addEventListener("change", showHistory);
+histStyle.addEventListener("change", showHistory);
 
 // ---------- Start up ----------
 showSaved();
