@@ -200,8 +200,8 @@ function showHistory() {
         <small>Drawn on ${esc(p.date)}</small>
         <div class="photo-row" data-index="${i}"></div>
         <div class="saved-actions">
-          <button class="photo-add-btn" data-index="${i}">📷 Add photo</button>
-          <button class="delete-btn hist-remove-btn" data-index="${i}">🗑 Remove</button>
+          <button class="photo-add-btn" data-index="${i}">Add photo</button>
+          <button class="delete-btn hist-remove-btn" data-index="${i}"> Remove</button>
         </div>
       </div>`)
     .reverse()
@@ -243,7 +243,7 @@ function showSaved() {
         <strong>${esc(p.title)}</strong>${esc(p.text)}
         <div class="saved-actions">
           <button class="drawn-btn" data-index="${i}">Drawn</button>
-          <button class="delete-btn" data-index="${i}">🗑 Remove</button>
+          <button class="delete-btn" data-index="${i}">Remove</button>
         </div>
       </div>`)
     .reverse()
@@ -300,7 +300,7 @@ document.getElementById("save-idea").addEventListener("click", () => {
   saved.push(currentPrompt);
   saveSaved();
   showSaved();
-  showMessage("Saved ⭐", "ok");
+  showMessage("Saved", "ok");
 });
 
 document.getElementById("drew-idea").addEventListener("click", () => {
@@ -380,7 +380,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "1.4";
+const APP_VERSION = "2.0";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
