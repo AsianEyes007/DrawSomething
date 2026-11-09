@@ -400,7 +400,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.2.2";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
