@@ -494,3 +494,22 @@ nav button.active { color: var(--coral); }
   border: 1px solid var(--line);
   border-radius: 3px;
 }
+
+/* Page slide animation */
+nav { z-index: 40; }
+body { overflow-x: hidden; }
+.screen.leaving,
+.screen.entering {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 28px 20px 0;
+  background: var(--bg);
+  pointer-events: none;
+}
+.screen.leaving { display: block; }
+
+#explore-bar { transition: opacity 0.15s ease; }
+body.sliding #explore-bar { opacity: 0; }

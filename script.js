@@ -160,13 +160,49 @@ function showMessage(text, type = "ok") {
 const navButtons = document.querySelectorAll("nav button");
 const screens = document.querySelectorAll(".screen");
 
+const screenOrder = Array.from(navButtons).map(b => b.dataset.screen);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
 function showScreen(name) {
-  navButtons.forEach(b =>
-    b.classList.toggle("active", b.dataset.screen === name)
+  const current = document.querySelector(".screen.active");
+  const incoming = document.getElementById(name);
+  let dir = 0;
+  if (current && incoming && current !== incoming && !reduceMotion.matches && current.animate) {
+    dir = screenOrder.indexOf(name) > screenOrder.indexOf(current.id) ? 1 : -1;
+  }
+  const scrolled = window.scrollY;
+
+  navButtons.forEach(b => b.classList.toggle("active", b.dataset.screen === name));
+  screens.forEach(s => s.classList.toggle("active", s.id === name));
+
+  if (!dir) return;
+
+  // Keep the old page on screen, in the same spot, while it slides away
+  current.classList.add("leaving");
+  current.style.top = (-scrolled) + "px";
+  incoming.classList.add("entering");
+  window.scrollTo(0, 0);
+  document.body.classList.add("sliding");
+
+  const w = window.innerWidth;
+  const timing = { duration: 240, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" };
+  current.animate(
+    [{ transform: "translateX(0)" }, { transform: "translateX(" + (-dir * w) + "px)" }],
+    { duration: timing.duration, easing: timing.easing, fill: "forwards" }
   );
-  screens.forEach(s =>
-    s.classList.toggle("active", s.id === name)
+  const anim = incoming.animate(
+    [{ transform: "translateX(" + (dir * w) + "px)" }, { transform: "translateX(0)" }],
+    timing
   );
+  const done = () => {
+    current.getAnimations().forEach(a => a.cancel());
+    current.classList.remove("leaving");
+    current.style.top = "";
+    incoming.classList.remove("entering");
+    document.body.classList.remove("sliding");
+  };
+  anim.onfinish = done;
+  anim.oncancel = done;
 }
 
 navButtons.forEach(btn => {
@@ -400,7 +436,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "2.2.2";
+const APP_VERSION = "2.4.2";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
@@ -874,6 +910,49 @@ histClear.addEventListener("click", () => {
 });
 histMood.addEventListener("change", showHistory);
 histStyle.addEventListener("change", showHistory);
+
+// ---------- Swipe between screens ----------
+(function () {
+  const order = Array.from(navButtons).map(b => b.dataset.screen);
+  let startX = 0, startY = 0, startT = 0, tracking = false;
+
+  function currentIndex() {
+    const active = document.querySelector(".screen.active");
+    return active ? order.indexOf(active.id) : -1;
+  }
+
+  document.addEventListener("touchstart", e => {
+    tracking = false;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    // leave the screen edges free for Android's back gesture
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    // don't swipe from things that scroll or need touch themselves
+    if (e.target.closest("input, select, textarea, .photo-row, .lightbox.open, .compare.open")) return;
+    // no swiping while Settings is open
+    if (document.getElementById("history-settings").classList.contains("open")) return;
+    startX = t.clientX;
+    startY = t.clientY;
+    startT = Date.now();
+    tracking = true;
+  }, { passive: true });
+
+  document.addEventListener("touchend", e => {
+    if (!tracking) return;
+    tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // needs to be a clear, quick, mostly sideways swipe
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5 || Date.now() - startT > 700) return;
+    const i = currentIndex();
+    if (i < 0) return;
+    const next = dx < 0 ? i + 1 : i - 1;
+    if (next < 0 || next >= order.length) return;
+    navButtons[next].click();
+    window.scrollTo(0, 0);
+  }, { passive: true });
+})();
 
 // ---------- Start up ----------
 showSaved();
