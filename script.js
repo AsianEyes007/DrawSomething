@@ -958,44 +958,57 @@ histStyle.addEventListener("change", showHistory);
 // The drawn-ideas list in this file is also called "history",
 // so the browser's own history is reached through window.history.
 const browserHistory = window.history;
-let backGuard = false;
+let pushedEntries = 0;   // browser entries we've added, one per level away from Home
 let ignorePop = false;
 
-function appAtHome() {
-  const active = document.querySelector(".screen.active");
-  return !active
-    || (active.id === "home"
-        && !lightbox.classList.contains("open")
-        && !compare.classList.contains("open"));
+function settingsOpen() {
+  return document.getElementById("history").classList.contains("active")
+    && document.getElementById("history-settings").classList.contains("open");
 }
 
-// While you're away from Home, keep one extra browser entry so Back has something to pop
-function syncBackGuard() {
-  const away = !appAtHome();
-  if (away && !backGuard) {
+// 0 = Home, 1 = another page, 2 = Settings (or a photo viewer), and so on
+function uiLevel() {
+  const active = document.querySelector(".screen.active");
+  let level = (!active || active.id === "home") ? 0 : 1;
+  if (settingsOpen()) level++;
+  if (lightbox.classList.contains("open")) level++;
+  if (compare.classList.contains("open")) level++;
+  return level;
+}
+
+// Entries are only ever added right after you tap or swipe, never during a back press.
+function syncBackStack() {
+  const level = uiLevel();
+  while (pushedEntries < level) {
     browserHistory.pushState({ drawsomething: true }, "");
-    backGuard = true;
-  } else if (!away && backGuard) {
-    backGuard = false;
+    pushedEntries++;
+  }
+  if (pushedEntries > level) {
+    const extra = pushedEntries - level;
+    pushedEntries = level;
     ignorePop = true;
-    browserHistory.back();
+    browserHistory.go(-extra);
   }
 }
 
 window.addEventListener("popstate", () => {
   if (ignorePop) { ignorePop = false; return; }
-  backGuard = false;
+  pushedEntries = Math.max(0, pushedEntries - 1);   // the browser already removed one
   if (lightbox.classList.contains("open")) {
     lightbox.classList.remove("open");
   } else if (compare.classList.contains("open")) {
     closeCompare();
-  } else if (document.getElementById("history").classList.contains("active")
-             && document.getElementById("history-settings").classList.contains("open")) {
+  } else if (settingsOpen()) {
     showHistoryView(false);
-  } else if (document.querySelector(".screen.active").id !== "home") {
+  } else if (uiLevel() > 0) {
     navButtons[0].click();
   }
-  syncBackGuard();
+});
+
+new MutationObserver(syncBackStack).observe(document.body, {
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["class"]
 });
 
 // Watch for any screen change, no matter how it happened (tap, swipe, button)
