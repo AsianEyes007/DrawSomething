@@ -436,7 +436,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "2.4.2";
+const APP_VERSION = "2.5.0";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
@@ -953,6 +953,57 @@ histStyle.addEventListener("change", showHistory);
     window.scrollTo(0, 0);
   }, { passive: true });
 })();
+
+// ---------- Android back button ----------
+// The drawn-ideas list in this file is also called "history",
+// so the browser's own history is reached through window.history.
+const browserHistory = window.history;
+let backGuard = false;
+let ignorePop = false;
+
+function appAtHome() {
+  const active = document.querySelector(".screen.active");
+  return !active
+    || (active.id === "home"
+        && !lightbox.classList.contains("open")
+        && !compare.classList.contains("open"));
+}
+
+// While you're away from Home, keep one extra browser entry so Back has something to pop
+function syncBackGuard() {
+  const away = !appAtHome();
+  if (away && !backGuard) {
+    browserHistory.pushState({ drawsomething: true }, "");
+    backGuard = true;
+  } else if (!away && backGuard) {
+    backGuard = false;
+    ignorePop = true;
+    browserHistory.back();
+  }
+}
+
+window.addEventListener("popstate", () => {
+  if (ignorePop) { ignorePop = false; return; }
+  backGuard = false;
+  if (lightbox.classList.contains("open")) {
+    lightbox.classList.remove("open");
+  } else if (compare.classList.contains("open")) {
+    closeCompare();
+  } else if (document.getElementById("history").classList.contains("active")
+             && document.getElementById("history-settings").classList.contains("open")) {
+    showHistoryView(false);
+  } else if (document.querySelector(".screen.active").id !== "home") {
+    navButtons[0].click();
+  }
+  syncBackGuard();
+});
+
+// Watch for any screen change, no matter how it happened (tap, swipe, button)
+new MutationObserver(syncBackGuard).observe(document.body, {
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["class"]
+});
 
 // ---------- Start up ----------
 showSaved();
