@@ -436,7 +436,7 @@ document.getElementById("explore-go").addEventListener("click", () => {
 });
 
 // ---------- Version ----------
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.5.2";
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = "DrawSomething v" + APP_VERSION;
 
@@ -1006,13 +1006,6 @@ window.addEventListener("popstate", () => {
 });
 
 new MutationObserver(syncBackStack).observe(document.body, {
-  subtree: true,
-  attributes: true,
-  attributeFilter: ["class"]
-});
-
-// Watch for any screen change, no matter how it happened (tap, swipe, button)
-new MutationObserver(syncBackGuard).observe(document.body, {
   subtree: true,
   attributes: true,
   attributeFilter: ["class"]
